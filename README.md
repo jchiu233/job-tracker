@@ -9,6 +9,7 @@ Built with TypeScript on Node, a REST API, and SQLite. The backend has **no runt
 - Add, edit, delete, and search applications (company, role, location, URL, notes, dates)
 - Drag-and-drop board that persists status changes through the API
 - Follow-up reminders: applications past their follow-up date are surfaced in a banner and flagged on the card
+- CSV export (honors the same filters as search) that guards against spreadsheet formula injection
 - Applied date is filled in automatically the first time an application moves to "Applied"
 - Input validation with clear error messages, security headers, and a request size limit
 - Light and dark mode, keyboard accessible cards
@@ -40,6 +41,7 @@ Configuration is by environment variable: `PORT` (default 3000), `HOST` (default
 | `GET`    | `/api/applications/:id`   | Fetch one                                                        |
 | `PATCH`  | `/api/applications/:id`   | Partial update. Send `null` or `""` to clear an optional field   |
 | `DELETE` | `/api/applications/:id`   | Delete                                                           |
+| `GET`    | `/api/applications/export.csv` | Download as CSV. Same `status` and `q` filters as the list  |
 | `GET`    | `/api/stats`              | Counts per status                                                |
 | `GET`    | `/api/reminders?today=YYYY-MM-DD` | Active applications whose follow-up date has arrived     |
 
@@ -75,7 +77,7 @@ tests/         API tests using node:test against a real in-memory database
 
 ## Tests
 
-`npm test` runs 17 tests covering creation, validation, partial updates, the auto-filled applied date, search and filters, reminders, deletion, 405/413 handling, security headers, and path traversal.
+`npm test` runs 20 tests covering creation, validation, partial updates, the auto-filled applied date, search and filters, reminders, deletion, CSV export, 405/413 handling, security headers, and path traversal.
 
 ## Ideas to extend it
 
@@ -86,7 +88,7 @@ These are good next steps, and each one gives you something concrete to talk abo
 3. **Status history** table, to chart how long applications spend in each stage
 4. **Swap SQLite for Postgres** and run both with Docker Compose
 5. **Rewrite the frontend in Angular**, since the API is already separate
-6. **Import/export** to CSV
+6. **Import** from CSV (export is already built)
 7. **Deploy it** (Fly.io, Render, Railway) with a persistent volume
 
 ## License

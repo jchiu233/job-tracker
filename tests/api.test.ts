@@ -213,6 +213,39 @@ describe("deleting", () => {
   });
 });
 
+describe("CSV export", () => {
+  it("exports applications as an attachment with a header row", async () => {
+    const res = await fetch(base + "/api/applications/export.csv");
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("content-type") ?? "", /text\/csv/);
+    assert.match(res.headers.get("content-disposition") ?? "", /attachment/);
+    const text = await res.text();
+    assert.ok(text.startsWith("Company,Role,Status,Location,Applied,Follow up,URL,Notes\r\n"));
+  });
+
+  it("quotes special characters and neutralizes spreadsheet formulas", async () => {
+    await api("POST", "/api/applications", {
+      company: '=HYPERLINK("http://evil.example")',
+      role: 'Dev, "Senior"',
+      notes: "line one\nline two",
+    });
+    const text = await (await fetch(base + "/api/applications/export.csv?q=HYPERLINK")).text();
+    const row = text.split("\r\n")[1] ?? "";
+    assert.ok(row.startsWith(`"'=HYPERLINK(""http://evil.example"")",`), row);
+    assert.ok(row.includes('"Dev, ""Senior"""'));
+    assert.ok(row.includes('"line one\nline two"'));
+  });
+
+  it("respects filters and rejects bad ones", async () => {
+    const text = await (await fetch(base + "/api/applications/export.csv?status=offer")).text();
+    const dataRows = text.trim().split("\r\n").slice(1);
+    assert.ok(dataRows.length >= 1);
+    assert.ok(dataRows.every((r) => r.split(",")[2] === "offer"));
+    const bad = await fetch(base + "/api/applications/export.csv?status=nope");
+    assert.equal(bad.status, 400);
+  });
+});
+
 describe("static files", () => {
   it("serves the frontend with security headers", async () => {
     const res = await fetch(base + "/");

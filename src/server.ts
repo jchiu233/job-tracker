@@ -1,7 +1,8 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
-import { STATUSES, type ApplicationStore } from "./db.js";
+import { toCsv } from "./csv.js";
+import { STATUSES, type ApplicationStore, type ListFilter } from "./db.js";
 import { isDate, isStatus, parseCreate, parsePatch } from "./validate.js";
 
 const MAX_BODY_BYTES = 100_000;
@@ -114,17 +115,22 @@ async function handleApi(
     return sendJson(res, 200, store.dueFollowUps(today));
   }
 
+  if (path === "/api/applications/export.csv") {
+    if (method !== "GET") throw notAllowed("GET");
+    const csv = toCsv(store.list(parseListFilter(url)));
+    res.writeHead(200, {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": 'attachment; filename="job-applications.csv"',
+      "Content-Length": Buffer.byteLength(csv),
+      "Cache-Control": "no-store",
+      ...SECURITY_HEADERS,
+    });
+    return void res.end(csv);
+  }
+
   if (path === "/api/applications") {
     if (method === "GET") {
-      const status = url.searchParams.get("status") ?? undefined;
-      const q = url.searchParams.get("q")?.trim() || undefined;
-      if (status !== undefined && !isStatus(status)) {
-        throw new HttpError(400, `status must be one of: ${STATUSES.join(", ")}`);
-      }
-      if (q !== undefined && q.length > 100) {
-        throw new HttpError(400, "q must be at most 100 characters");
-      }
-      return sendJson(res, 200, store.list({ status, q }));
+      return sendJson(res, 200, store.list(parseListFilter(url)));
     }
     if (method === "POST") {
       const parsed = parseCreate(await readJsonBody(req));
@@ -159,6 +165,19 @@ async function handleApi(
   }
 
   throw new HttpError(404, "Not found");
+}
+
+/** Read and validate the ?status= and ?q= filters shared by the list and export endpoints. */
+function parseListFilter(url: URL): ListFilter {
+  const status = url.searchParams.get("status") ?? undefined;
+  const q = url.searchParams.get("q")?.trim() || undefined;
+  if (status !== undefined && !isStatus(status)) {
+    throw new HttpError(400, `status must be one of: ${STATUSES.join(", ")}`);
+  }
+  if (q !== undefined && q.length > 100) {
+    throw new HttpError(400, "q must be at most 100 characters");
+  }
+  return { status, q };
 }
 
 function notAllowed(allow: string): HttpError {
